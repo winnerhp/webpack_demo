@@ -1,260 +1,167 @@
-const path = require( 'path' );
-const readdir = require( 'readdir' );
+var webpack = require('webpack');
+var path = require('path');
 
-const webpack = require( 'webpack' );
-const ExtractTextPlugin = require( 'extract-text-webpack-plugin' );
-const HtmlwebpackPlugin = require( 'html-webpack-plugin' );
-const WebpackMd5Hash = require( 'webpack-md5-hash' );
-const ResolverPlugin = webpack.ResolverPlugin;
-const DirectoryDescriptionFilePlugin = webpack.ResolverPlugin.DirectoryDescriptionFilePlugin;
-const ProvidePlugin = webpack.ProvidePlugin;
-const CommonsChunkPlugin = webpack.optimize.CommonsChunkPlugin;
-const UglifyJsPlugin = webpack.optimize.UglifyJsPlugin;
-const DefinePlugin = webpack.DefinePlugin;
-const HtmlResWebpackPlugin = require( 'html-res-replace-webpack-plugin' );
-const CopyWebpackPlugin = require( 'copy-webpack-plugin-hash' );
+var HtmlwebpackPlugin = require('html-webpack-plugin');
+var HtmlwebpackRandomExtendPlugin = require('html-webpack-random-extend-plugin');
+var UglifyJsPlugin = require('webpack/lib/optimize/UglifyJsPlugin');
+var DedupePlugin = require('webpack/lib/optimize/DedupePlugin');
+var CommonsChunkPlugin = require('webpack/lib/optimize/CommonsChunkPlugin');
+var ExtractTextPlugin = require("extract-text-webpack-plugin");
+var WebpackMd5Hash = require('webpack-md5-hash');
+var autoprefixer = require('autoprefixer');
+var ResolverPlugin = webpack.ResolverPlugin;
+var DirectoryDescriptionFilePlugin = webpack.ResolverPlugin.DirectoryDescriptionFilePlugin;
 
-///////////////////////////////////以下为配置项///////////////////////////////////
+var ttConfig = require('./toutiao.config.js'),
+    ttentry = ttConfig.entry,
+    tthtml = ttConfig.html,
+    ttcommonlib = ttConfig.commonlib;
 
-// 当前项目名称
-const projectName = path.parse( __dirname ).name;
-// 源代码模板目录
-const tplPath  = path.resolve( __dirname, 'page' );
-// 默认产出目录
-const outputDir = 'output';
+var cdnPrefix = ttConfig.cdnPrefix
+    ? ttConfig.cdnPrefix
+    : ['//s3.pstatp.com/toutiao/','//s3a.pstatp.com/toutiao','//s3b.pstatp.com/toutiao'];
 
-// local模式产出目录配置
-const localStaticPath = path.join( outputDir, 'static/' );
-const localTplPath    = path.join( outputDir, 'page/' );
 
-// online模式产出目录配置
-const prefixOnlineStaticPath = path.join( 'resource', projectName );
-const prefixOnlineTplPath    = path.join( 'template', projectName );
-const onlineStaticPath = path.join( outputDir, prefixOnlineStaticPath );
-const onlineTplPath    = path.join( outputDir, prefixOnlineTplPath );
+var isLocal = process.env.NODE_ENV.toString() == 'development' ? true : false;
 
-// 判断运行模式
-let envState = process.env.NODE_ENV;
-let isLocal = envState === 'local';
-let isOnline = envState === 'online';
+var project_name = path.parse(__dirname).name,
+    src_path = path.resolve(__dirname,'src'),
+    output_path = path.join(__dirname,'./output'),
+    page_path = path.resolve(src_path,'page'),
+    component_path = path.resolve(src_path,'component');
 
-// 域名设置
-let domainsConfig = [ 
-    '//s3.pstatp.com/toutiao',
-    '//s3a.pstatp.com/toutiao',
-    '//s3b.pstatp.com/toutiao'
-];
-
-// hash 设置
-let hashConfig = {
-    chunkhash: '[chunkhash:8]',
-    hash: '[hash:8]',
-    contenthash: '[contenthash:8]'
-};
-
-// css 导出设置
-let cssExportConfig = '[name].' + hashConfig.chunkhash + '.css';
-// js 导出设置
-let jsExportConfig = '[name].' + hashConfig.chunkhash + '.js';
-
-// webpack 打包入口设置
-let entryConfig = {
-    auth: './script/auth/main.js',
-    // vendor
-    vendor: [ 
-        'jquery', 'jquery-validation', 'bootstrap'
-    ],
-    react: [
-        'react', 'react-router', 'react-dom' 
-    ]
-};
-
-// vendor 设置
-let commonChunks = [
-    {
-        name: 'vendor',
-        filename: 'vendor.' + hashConfig.chunkhash + '.js'
-    }
-];
-
-// 对全局暴露的变量
-let providerConfig = {
-    $: 'jquery',
-    jQuery: 'jquery'
-};
-
-///////////////////////////////下方配置一般无需修改////////////////////////////////////
-
-// 产出目录
-const outputPaths = {
-    local: {
-        static: localStaticPath,
-        tpl: localTplPath,
-        absoStatic: path.resolve( localStaticPath ),
-        absoTpl: path.resolve( localTplPath )
-    },
-    online: {
-        static: onlineStaticPath,
-        tpl: onlineTplPath,
-        absoStatic: path.resolve( onlineStaticPath ),
-        absoTpl: path.resolve( onlineTplPath )
-    }
-};
-
-// 项目导出配置
-let outputConfig = {
-    path: './' + outputPaths[ envState ].static,
-    filename: jsExportConfig,
-    chunkFilename: 'chunk/[name]' + hashConfig.chunkhash + '.js'
-};
-
-// 本地开发模式
-if ( isLocal ) {
-    outputConfig.publicPath = '/' + outputPaths[ envState ].static;
-}
-
-// html replacement
-let replacementsArr = [
-    {
-        search: /\[tplroot\]/g,
-        replace: isLocal ? outputDir : prefixOnlineTplPath
-    }
-];
-
-// 插件列表
-let plugins = [
-    // 占位符替换
-    // new DefinePlugin( defineConfig ),
+var plugins = [
     // 对bower_components中模块的支持
     new ResolverPlugin( 
         [ new DirectoryDescriptionFilePlugin( 'bower.json', [ 'main' ] ) ], 
         [ 'normal', 'loader' ] 
     ),
-    new ProvidePlugin( providerConfig ),
-    new ExtractTextPlugin( cssExportConfig )
+    new WebpackMd5Hash()
 ];
 
-// pushing page handler
-( () => {
-    let afterfix = path.parse( tplPath ).name;
-    let results  = readdir.readSync( tplPath, [ '**.html' ] );
-    results.map( el => {
-        plugins.push(
-            new HtmlResWebpackPlugin( {
-                mode: 'html',
-                filename: path.join(
-                    '../..', 
-                    isLocal ? localTplPath : prefixOnlineTplPath, 
-                    el 
-                ),
-                template: path.join( afterfix, el ),
-                htmlMinify: null,
-                replace: replacementsArr
-            } )
-        );
-    } );
-} )();
+// for React single config
+(function() {
+    if(!isLocal) {
+        plugins.push(new webpack.DefinePlugin({
+            'process.env': {
+                NODE_ENV: JSON.stringify('production')
+            }
+        }))
+    }
+})();
 
-// pushing commonschunkplugins
-commonChunks.forEach( ( el, inx ) => {
-    plugins.push( new CommonsChunkPlugin( el ) );
-} );
+// html模版配置
+!(function(htmls) {
+    htmls.forEach(function(item) {
+        var params = {
+            filename : isLocal ? item.template : 'template/'+project_name+'/'+item.template,
+            template : path.join(page_path,item.template),
+            chunks : item.chunks,
+            inject: true,
+            minify: {
+              removeComments: true
+            }
+        }
+        plugins.push(new HtmlwebpackPlugin(params))
+    })
+})(tthtml)
 
-// 上线模式
-if ( isOnline ) {
-    // 上线压缩
-    plugins.push( new UglifyJsPlugin( {
-        compress: { warnings: false }
-    } ) );
-    // 每一次上线随机取一个域名
-    outputConfig.publicPath = [ 
-            domainsConfig[ Math.random() * 3 | 0 ], 
-            '/', 
-            prefixOnlineStaticPath,
-            '/'
-        ].join( '' );
+// entry js配置
+!function(entries) {
+    for(var i in entries) {
+        if(typeof(entries[i]) == 'string' ) {
+            ttentry[i] = path.join(page_path,entries[i])
+        }
+    }
+}(ttentry)
+
+// css 配置
+var pkgcss = new ExtractTextPlugin(isLocal ? "css/[name].css" : "resource/"+project_name+"/css/[name].[chunkhash:8].css");
+plugins.push(pkgcss);
+
+// 公共js配置
+!function(commonjs) {
+    commonjs.forEach(function(item) {
+        var params = {
+            name: item.name,
+            filename: isLocal ? 'js/'+item.name+'.js' : 'resource/'+project_name+'/js/'+item.name+'.[hash:8].js',
+            chunks: item.chunks
+        }
+        plugins.push(new CommonsChunkPlugin(params))
+    })
+}(ttcommonlib)
+
+// 插件配置
+
+if(ttConfig.plugins) plugins.concat(ttConfig.plugins);
+
+if(!isLocal) {
+    require('shelljs').rm('-rf','./output');
+    plugins = plugins.concat([
+        new HtmlwebpackRandomExtendPlugin({cdnPrefix: cdnPrefix}),
+        new DedupePlugin(),
+        new UglifyJsPlugin({compress: {warnings: false}})
+    ])
 }
 
 module.exports = {
+
     devtool: isLocal ? '#source-map' : false,
-    entry: entryConfig,
-    output: outputConfig,
-    plugins: plugins,
-    // 可使用postcss
-    postcss: webpack => {
-        return [
-            require( 'postcss-import' )( { addDependencyTo: webpack } ),
-            require( 'postcss-url' )(),
-            require( 'precss' )(),
-            require( 'postcss-cssnext' )(),
-            require( 'postcss-browser-reporter' )(),
-            require( 'postcss-reporter' )()
-        ]
+
+    entry : ttentry,
+    devServer: {
+        historyApiFallback: true,
+        hot: true,
+        inline: true,
+        progress: true,
+        color: false,
+        port: 8080,
+        host: '0.0.0.0',
+        contentBase: './output',
+        proxy: {
+            '/mock/*': {
+                target: 'http://127.0.0.1:8080',
+                secure: false,
+            }
+        }
     },
-    module: {
-        preLoaders: [ ],
+    output : {
+        filename : isLocal ? "js/[name].js" : "resource/"+project_name+"/js/[name].[chunkhash:8].js",
+        chunkFilename: isLocal ? "js/[id].bundle.js" : "resource/"+project_name+"/js/[id].bundle.[chunkhash:8].js",
+        path :  output_path,
+        publicPath : '/'
+    },
+    module : {
         loaders: [
             {
-                test: /\.(js|jsx|es6)?$/,
-                exclude: /(node_modules|bower_components)/,
+                test: /\.(js|jsx|es6)$/,
+                exclude: /node_modules/,
                 loader: 'babel-loader?presets[]=es2015&presets[]=react'
             },
             {
                 test: /\.less$/,
-                loader: ExtractTextPlugin.extract(
-                    'style-loader', 'css-loader?minimize', 'less-loader?strictMath&noIeCompat'
-                )
+                loader: ExtractTextPlugin.extract('style-loader', 'css-loader?minimize!postcss-loader!less-loader')
             },
             {
-                test: /\.scss$/,
-                loaders: ExtractTextPlugin.extract(
-                    'style-loader', 'css-loader?minimize', 'sass-loader'
-                )
+                test: /\.css$/,
+                loader: ExtractTextPlugin.extract('style-loader', 'css-loader?minimize!postcss-loader')
             },
-            // for postcss
-            // {
-            //     test: /\.css$/,
-            //     exclude: /(node_modules|bower_components)/,
-            //     loader: ExtractTextPlugin.extract(
-            //         'style-loader', 'css-loader?minimize', 'postcss-loader'
-            //     )
-            // },
             {
-                test: /\.jpg$/, 
-                loader: 'file-loader' 
-            },
-            { 
-                test: /\.(png|woff|woff2|eot|ttf|svg|gif)$/, 
-                loader: 'url-loader?limit=5000' 
+                test: /\.(jpeg|jpg|png|gif)$/,
+                loader: isLocal ? 'url?limit=4096&name=images/[name].[ext]' : 'url?limit=4096&name=resource/'+project_name+'/images/[name].[hash:8].[ext]'
             }
         ]
     },
-    resolve: {
-        extensions: [ '', '.js', '.jsx', '.json', '.tsx', '.ts', '.es6','.vue' ],
-        modulesDirectories: [ 'node_modules', 'bower_components' ]
+    postcss: function() {
+        return [ autoprefixer({ browsers: ['iOS 7','> 5%'] }) ]
     },
-    // 服务器配置【因为使用django template模板，所以服务器建议使用fis3b】
-    // devServer: {
-    //     historyApiFallback: true,
-    //     hot: true,
-    //     inline: true,
-    //     progress: true,
-    //     color: true,
-    //     port: 8003,
-    //     host: '0.0.0.0',
-    //     contentBase: './output',
-    //     // html请求被fis3b ws代理来解析 html
-    //     proxy: {
-    //         '/mock/*': {
-    //             target: 'http://127.0.0.1:8005',
-    //             secure: false,
-    //         }
-    //     }
-    // }
-};
-
-
-
-
-
-
+    plugins : plugins,
+    resolve : {
+        exclude: [process.cwd() + '/node_modules'],
+        root: [process.cwd() + '/node_modules'],
+        modulesDirectories: [ 'node_modules', 'bower_components' ],
+        extensions: ['', '.js', '.jsx', '.json', '.tsx', '.ts', '.es6','.vue'],
+        alias: ttConfig.alias
+    },
+    externals: ttConfig.externals
+}

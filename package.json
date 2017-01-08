@@ -1,21 +1,17 @@
 {
   "name": "webpack_demo",
-  "version": "1.0.6",
-  "description": "webpack_demo",
-  "main": "index.js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "webpack.config.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "bash shell/watch.sh",
-    "fisws": "bash shell/fisws.sh",
-    "online": "bash shell/online.sh"
+    "build_local": "NODE_ENV=development tt-wb --watch --colors --progress --profile",
+    "build_online": "NODE_ENV=online tt-wb",
+    "dev": "NODE_ENV=development tt-wbs --colors --progress --profile --hot"
   },
-  "repository": {
-    "type": "git",
-    "url": "git@code.byted.org:toutiao-fe/webpack_demo.git"
+  "author": "winnerhp",
+  "license": "ISC",
+  "devDependencies": {
   },
-  "keywords": [
-    "webpack"
-  ],
-  "author": "guanwei@bytedance.com",
-  "license": "ISC"
+  "dependencies": {
+  }
 }
