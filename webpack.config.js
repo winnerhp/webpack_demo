@@ -76,7 +76,7 @@ var plugins = [
 }(ttentry)
 
 // css 配置
-var pkgcss = new ExtractTextPlugin(isLocal ? "css/[name].css" : "resource/"+project_name+"/css/[name].[chunkhash:8].css");
+var pkgcss = new ExtractTextPlugin(isLocal ? "css/[name].css" : "resource/"+project_name+"/css/[name].[contenthash:8].css");
 plugins.push(pkgcss);
 
 // 公共js配置
@@ -84,7 +84,7 @@ plugins.push(pkgcss);
     commonjs.forEach(function(item) {
         var params = {
             name: item.name,
-            filename: isLocal ? 'js/'+item.name+'.js' : 'resource/'+project_name+'/js/'+item.name+'.[hash:8].js',
+            filename: isLocal ? 'js/'+item.name+'.js' : 'resource/'+project_name+'/js/'+item.name+'.[chunkhash:8].js',
             chunks: item.chunks
         }
         plugins.push(new CommonsChunkPlugin(params))
